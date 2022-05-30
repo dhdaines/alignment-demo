@@ -1,0 +1,24 @@
+.content {
+    padding: 1em;
+}
+.content-box {
+    margin: 1ex;
+    padding: 1em;
+    /* FIXME: should be relative to largest content, no idea how to do that */
+    height: 5em;
+    border: solid black 1px;
+}
+
+.title-bar, .status-bar {
+    color: white;
+    background: black;
+    padding: 0.5em;
+    margin: 0;
+    margin-left: 1ex;
+    margin-right: 1ex;
+    text-align: center;
+}
+
+.title-bar h1 {
+    margin: 0;
+}

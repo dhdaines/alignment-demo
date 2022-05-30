@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Speech to text alignment demo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8">
+  </head>
+  <body>
+    <div class="content-wrapper">
+      <div class="content">
+	<div class="pure-g">
+	  <div class="pure-u-1 title-bar">
+	    <h1>Speech to text alignment demo</h1>
+	  </div>
+	  <div class="pure-u-1-2">
+	    <div class="content-box">
+	      <form class="pure-form-stacked">
+		<label>Select WAV file to align:
+		  <input id="file-input" type="file" value="Upload" accept=".wav,audio/wav">
+		</label>
+	      </form>
+	    </div>
+	  </div>
+	  <div class="pure-u-1-2">
+	    <div class="content-box">
+              <span class="label">Listen:</span><br>
+              <audio id="file-play" controls></audio>
+	    </div>
+	  </div>
+	  <div class="pure-u-1-2">
+	    <div class="content-box">
+	      <form class="pure-form">
+		<label>Enter what you said:
+		  <textarea id="text-input" class="pure-input-1"></textarea>
+		</label>
+	      </form>
+	    </div>
+	  </div>
+	  <div class="pure-u-1-2">
+	    <div class="content-box">
+              <span class="label">Alignment:</span><br>
+	      <div id="aligned-text">
+	      </div>
+	    </div>
+	  </div>
+	  <div class="pure-u-1 status-bar" id="status-bar">
+	    Initializing speech recognition...
+	  </div>
+	</div>
+      </div>
+  </body>
+</html>
