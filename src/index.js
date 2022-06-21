@@ -92,7 +92,8 @@ async function initialize() {
 	timeout = setTimeout(timeout_function, INPUT_TIMEOUT);
     });
     try {
-	await aligner.initialize({loglevel: "INFO"});
+	await aligner.initialize({hmm: "model/en-us", /* Relative path */
+				  loglevel: "INFO"});
 	update_status("Speech recognition ready");
 	aligner_ready = true;
     }
