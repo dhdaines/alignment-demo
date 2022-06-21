@@ -1,8 +1,9 @@
+"use strict";
 // Copyright (c) 2022 David Huggins-Daines <dhdaines@gmail.com>
 // MIT license, see LICENSE for details
 
-const WebworkerPromise = require("webworker-promise");
 const decode = require("audio-decode");
+const aligner = require("./aligner.js");
 
 require("purecss");
 require("./index.css");
@@ -19,8 +20,7 @@ function update_status(message) {
 }
 // Currently loaded audio data
 var audio_data = null;
-// Aligner worker and its status
-var aligner = null;
+// Decoder for alignment
 var aligner_ready = false;
 
 async function initialize() {
@@ -61,10 +61,8 @@ async function initialize() {
 	    else {
 		update_status("Aligning: "+ text_input.value);
 		try {
-		    /* FIXME: Why can't we transfer audio_data.channelData?!? */
-		    hypseg = await aligner.exec("align",
-						{audio: audio_data,
-						 text: text_input.value});
+		    const hypseg = await aligner.align(audio_data,
+						       text_input.value);
 		    console.log(hypseg);
 		    /* Build the clickable aligned text */
 		    aligned_text.innerHTML = "";
@@ -94,9 +92,7 @@ async function initialize() {
 	timeout = setTimeout(timeout_function, INPUT_TIMEOUT);
     });
     try {
-	aligner = new WebworkerPromise(
-	    new Worker(new URL("./aligner.js", import.meta.url)));
-	await aligner.exec("initialize", {loglevel: "DEBUG"});
+	await aligner.initialize({loglevel: "INFO"});
 	update_status("Speech recognition ready");
 	aligner_ready = true;
     }
