@@ -11,26 +11,17 @@ async function initialize(config) {
 }
 
 async function align(audio, text) {
-    if (recognizer.config.get("samprate") != audio.sampleRate) {
-	recognizer.config.set("samprate", audio.sampleRate);
+    if (recognizer.get_config("samprate") != audio.sampleRate) {
+	recognizer.set_config("samprate", audio.sampleRate);
 	await recognizer.reinitialize_audio();
     }
-    const transitions = [];
-    let idx = 0;
-    for (const word of text.trim().split(/\s+/)) {
-	if (recognizer.lookup_word(word) === null) {
-	    throw new Error("Word '"+word+"' is not in the dictionary");
-	}
-	transitions.push({from: idx, to: idx + 1, word: word, prob: 1.0});
-	idx++;
-    }
-    const fsg = recognizer.create_fsg(text, 0, idx, transitions);
-    await recognizer.set_fsg(fsg);
-    fsg.delete();
+    await recognizer.set_align_text(text);
     await recognizer.start();
-    const nfr = await recognizer.process(audio.channelData[0], true);
+    console.log(audio);
+    const nfr = await recognizer.process(audio.channelData[0], false, true);
     await recognizer.stop();
-    return recognizer.get_hypseg()
+    const jresult = await recognizer.get_alignment_json(0, 0);
+    return JSON.parse(jresult);
 }
 
 module.exports = {

@@ -61,26 +61,26 @@ async function initialize() {
 	    else {
 		update_status("Aligning: "+ text_input.value);
 		try {
-		    const hypseg = await aligner.align(audio_data,
+		    const result = await aligner.align(audio_data,
 						       text_input.value);
-		    console.log(hypseg);
+		    console.log(result);
 		    /* Build the clickable aligned text */
 		    aligned_text.innerHTML = "";
-		    for (const idx in hypseg) {
+		    for (const idx in result.w) {
+                        const seg = result.w[idx];
 			const wordel = document.createElement("span");
-			wordel.textContent = hypseg[idx].word;
+			wordel.textContent = seg.t;
 			wordel.className = "segment pure-button";
-			wordel.title = "("+hypseg[idx].start+":"+hypseg[idx].end+")";
+			wordel.title = `(${seg.b}:${seg.b+seg.d})`;
 			wordel.addEventListener("click", async () => {
 			    // FIXME: Do all this with sprites or whatever
-			    const duration = hypseg[idx].end - hypseg[idx].start;
-			    file_play.currentTime = hypseg[idx].start;
+			    file_play.currentTime = seg.b;
 			    await file_play.play();
 			    setTimeout(() => { file_play.pause() },
-				       duration * 1000);
+				       seg.d * 1000);
 			});
 			aligned_text.appendChild(wordel);
-			if (idx != hypseg.length - 1)
+			if (idx != result.length - 1)
 			    aligned_text.append(document.createTextNode(" "));
 		    }
 		}
