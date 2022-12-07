@@ -10,7 +10,7 @@ var soundswallower: SoundSwallowerModule;
 export var recognizer: Decoder;
 
 export async function initialize(config: any) {
-    soundswallower = await require("soundswallower")()
+    soundswallower = await soundswallower_factory();
     recognizer = new soundswallower.Decoder(config);
     return recognizer.initialize();
 }
