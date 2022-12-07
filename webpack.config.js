@@ -7,7 +7,7 @@ const modelDir = require("soundswallower/model");
 const isProduction = process.env.NODE_ENV == "production";
 
 const config = {
-    entry: "./src/index.js",
+    entry: "./src/index.ts",
     output: {
 	path: path.resolve(__dirname, "docs"),
     },
@@ -52,10 +52,16 @@ const config = {
 		test: /\.css$/i,
 		use: [ MiniCssExtractPlugin.loader, "css-loader" ],
 	    },
+            {
+                test: /\.tsx?$/,
+                use: 'ts-loader',
+                exclude: /node_modules/,
+            },
 	],
     },
     // Eliminate emscripten's node junk when using webpack
     resolve: {
+        extensions: ['.tsx', '.ts', '.js'],
 	fallback: {
 	    crypto: false,
 	    fs: false,
@@ -75,6 +81,7 @@ module.exports = () => {
 	config.mode = "production";
     } else {
 	config.mode = "development";
+        config.devtool = "eval-source-map";
     }
     return config;
 };
