@@ -13,9 +13,10 @@ window.addEventListener("load", initialize);
 const INPUT_TIMEOUT = 500;
 
 // FIXME: Global, but doesn't need to be
-var status_bar: HTMLElement;
+var status_bar: HTMLElement | null;
 function update_status(message: string) {
-    status_bar.innerHTML = message;
+    if (status_bar !== null)
+        status_bar.innerHTML = message;
 }
 // Currently loaded audio data
 var audio_buffer: AudioBuffer | null = null;
@@ -29,13 +30,15 @@ async function initialize() {
     const file_input = document.getElementById("file-input") as HTMLInputElement;
     const file_play = document.getElementById("file-play") as HTMLAudioElement;
     file_input.addEventListener("change", async () => {
-        const file = file_input.files[0];
-	/* Set it up to play in the audio element */
-        file_play.src = URL.createObjectURL(file);
-	/* Decode it into an AudioBuffer for alignment purposes */
-        const sampleRate = aligner.recognizer.get_config("samprate") as number;
-        const context = new AudioContext({ sampleRate });
-        audio_buffer = await context.decodeAudioData(await file.arrayBuffer());
+        if (file_input.files !== null) {
+            const file = file_input.files[0];
+	    /* Set it up to play in the audio element */
+            file_play.src = URL.createObjectURL(file);
+	    /* Decode it into an AudioBuffer for alignment purposes */
+            const sampleRate = aligner.recognizer.get_config("samprate") as number;
+            const context = new AudioContext({ sampleRate });
+            audio_buffer = await context.decodeAudioData(await file.arrayBuffer());
+        }
     });
     let timeout: number;
     text_input.addEventListener("input", () => {
@@ -50,6 +53,8 @@ async function initialize() {
 		window.setTimeout(timeout_function, INPUT_TIMEOUT);
 	    }
 	    else {
+                if (aligned_text === null)
+                    return;
 		update_status("Aligning: "+ text_input.value);
 		try {
 		    const result = await aligner.align(audio_buffer,
