@@ -1,9 +1,8 @@
-"use strict";
 // Copyright (c) 2022 David Huggins-Daines <dhdaines@gmail.com>
 // MIT license, see LICENSE for details
 
-const decode = require("audio-decode");
-const aligner = require("./aligner.js");
+import { AudioContext, AudioBuffer } from "standardized-audio-context";
+import * as aligner from "./aligner";
 
 require("purecss");
 require("./index.css");
@@ -14,61 +13,56 @@ window.addEventListener("load", initialize);
 const INPUT_TIMEOUT = 500;
 
 // FIXME: Global, but doesn't need to be
-var status_bar;
-function update_status(message) {
+var status_bar: HTMLElement;
+function update_status(message: string) {
     status_bar.innerHTML = message;
 }
 // Currently loaded audio data
-var audio_data = null;
+var audio_buffer: AudioBuffer | null = null;
 // Decoder for alignment
 var aligner_ready = false;
 
 async function initialize() {
     status_bar = document.getElementById("status-bar");
-    const text_input = document.getElementById("text-input");
+    const text_input = document.getElementById("text-input") as HTMLTextAreaElement;
     const aligned_text = document.getElementById("aligned-text");
-    const file_input = document.getElementById("file-input");
-    const file_play = document.getElementById("file-play");
+    const file_input = document.getElementById("file-input") as HTMLInputElement;
+    const file_play = document.getElementById("file-play") as HTMLAudioElement;
     file_input.addEventListener("change", async () => {
         const file = file_input.files[0];
 	/* Set it up to play in the audio element */
         file_play.src = URL.createObjectURL(file);
-	/* Read it into an AudioBuffer for alignment purposes */
-	let audio_buffer = await decode(file);
-	/* But ... AudioBuffer is not transferable
-	 * (https://github.com/WebAudio/web-audio-api/issues/2390) and
-	 * also cannot be serialized :( */
-	audio_data = {
-	    sampleRate: audio_buffer.sampleRate,
-	    channelData: [
-		/* FIXME: Assume it's mono for now */
-		audio_buffer.getChannelData(0)
-	    ]
-	};
+	/* Decode it into an AudioBuffer for alignment purposes */
+        const sampleRate = aligner.recognizer.get_config("samprate") as number;
+        const context = new AudioContext({ sampleRate });
+        audio_buffer = await context.decodeAudioData(await file.arrayBuffer());
     });
-    let timeout = null;
+    let timeout: number;
     text_input.addEventListener("input", () => {
 	clearTimeout(timeout);
 	async function timeout_function() {
-	    if (aligner === null || !aligner_ready) {
+	    if (!aligner_ready) {
 		update_status("Waiting for speech recognition...");
-		setTimeout(timeout_function, INPUT_TIMEOUT);
+		window.setTimeout(timeout_function, INPUT_TIMEOUT);
 	    }
-	    else if (audio_data === null) {
+	    else if (audio_buffer === null) {
 		update_status("Please select a WAV file to align");
-		setTimeout(timeout_function, INPUT_TIMEOUT);
+		window.setTimeout(timeout_function, INPUT_TIMEOUT);
 	    }
 	    else {
 		update_status("Aligning: "+ text_input.value);
 		try {
-		    const result = await aligner.align(audio_data,
+		    const result = await aligner.align(audio_buffer,
 						       text_input.value);
 		    console.log(result);
 		    /* Build the clickable aligned text */
 		    aligned_text.innerHTML = "";
-		    for (const idx in result.w) {
+		    for (let idx = 0; idx < result.w.length; idx++) {
                         const seg = result.w[idx];
 			const wordel = document.createElement("span");
+                        if (seg.t == "<s>" || seg.t == "</s>"
+                            || seg.t == "(null)" || seg.t == "<sil>")
+                            continue;
 			wordel.textContent = seg.t;
 			wordel.className = "segment pure-button";
 			wordel.title = `(${seg.b}:${seg.b+seg.d})`;
@@ -76,11 +70,11 @@ async function initialize() {
 			    // FIXME: Do all this with sprites or whatever
 			    file_play.currentTime = seg.b;
 			    await file_play.play();
-			    setTimeout(() => { file_play.pause() },
-				       seg.d * 1000);
+			    window.setTimeout(() => { file_play.pause() },
+				              seg.d * 1000);
 			});
 			aligned_text.appendChild(wordel);
-			if (idx != result.length - 1)
+			if (idx != result.w.length - 1)
 			    aligned_text.append(document.createTextNode(" "));
 		    }
 		}
@@ -89,7 +83,7 @@ async function initialize() {
 		}
 	    }
 	};
-	timeout = setTimeout(timeout_function, INPUT_TIMEOUT);
+	timeout = window.setTimeout(timeout_function, INPUT_TIMEOUT);
     });
     try {
 	await aligner.initialize({hmm: "model/en-us", /* Relative path */

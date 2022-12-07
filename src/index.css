@@ -4,8 +4,6 @@
 .content-box {
     margin: 1ex;
     padding: 1em;
-    /* FIXME: should be relative to largest content, no idea how to do that */
-    height: 5em;
     border: solid black 1px;
 }
 
