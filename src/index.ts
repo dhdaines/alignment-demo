@@ -24,6 +24,7 @@ class DemoApp {
     file_play: HTMLAudioElement;
     start_button: HTMLButtonElement;
     stop_button: HTMLButtonElement;
+    language_list: HTMLSelectElement;
     spectrogram: HTMLCanvasElement;
     spectrogramImage: ImageData;
     recorder: MediaRecorder | null = null;
@@ -39,6 +40,7 @@ class DemoApp {
         this.file_play = document.getElementById("file-play") as HTMLAudioElement;
         this.start_button = document.getElementById("record") as HTMLButtonElement;
         this.stop_button = document.getElementById("stop") as HTMLButtonElement;
+        this.language_list = document.getElementById("language") as HTMLSelectElement;
         this.spectrogram = document.getElementById("spectrogram") as HTMLCanvasElement;
     }
     
@@ -233,8 +235,7 @@ class DemoApp {
     async initialize() {
 	this.update_status("Waiting for speech recognition...");
         try {
-	    await aligner.initialize({hmm: "model/en-us", /* Relative path */
-				      loglevel: "INFO"});
+	    await aligner.initialize({loglevel: "INFO"});
             const nfeat = aligner.recognizer.get_config("nfilt") as number;
             this.spectrogram.height = (nfeat - 1) * FILT_HEIGHT + 60;
 	    this.update_status("Speech recognition ready");
@@ -256,6 +257,22 @@ class DemoApp {
         this.text_input.addEventListener("input",
                                          debounce(() => this.align_text(),
                                                   INPUT_TIMEOUT));
+        this.language_list.addEventListener("change", async () => {
+            const idx = this.language_list.selectedIndex;
+            const lang = this.language_list.options[idx].value;
+	    this.update_status("Setting language to " + lang);
+            try {
+                await aligner.reinitialize({ hmm: "model/" + lang });
+	        this.update_status("Speech recognition ready");
+            }
+            catch (e) {
+	        this.update_status("Error reinitializing speech aligner: "
+		    + e.message);
+            }
+            this.text_input.value = "";
+	    this.aligned_text.innerHTML = "";
+            this.align_text();
+        });
     }
 }
 
