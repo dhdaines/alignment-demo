@@ -84,7 +84,8 @@ class DemoApp {
                     max_value = data[i];
             for (let i = 0; i < nfr; i++) {
                 for (let j = 1; j < nfeat; j++) {
-                    const value = data[i * nfeat + j];
+                    /* They *should* be positive, it's a *log* spectrum, but... */
+                    const value = Math.abs(data[i * nfeat + j]);
                     const sv = Math.floor(value * 255 / max_value).toString(16);
                     ctx.fillStyle = "#" + sv + sv + sv;
                     /* From the bottom up */
@@ -167,7 +168,7 @@ class DemoApp {
     
     async align_text() {
 	if (this.audio_buffer === null) {
-	    this.update_status("Please select an audio file to align");
+	    this.update_status("Please record or select an audio file to align");
 	}
 	else if (this.text_input.value.trim() == "") {
 	    this.update_status("Please enter some text to align");
@@ -260,7 +261,7 @@ class DemoApp {
         this.language_list.addEventListener("change", async () => {
             const idx = this.language_list.selectedIndex;
             const lang = this.language_list.options[idx].value;
-	    this.update_status("Setting language to " + lang);
+	    this.update_status(`Setting language to ${lang}...`);
             try {
                 await aligner.reinitialize({ hmm: "model/" + lang });
 	        this.update_status("Speech recognition ready");
