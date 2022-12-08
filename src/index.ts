@@ -22,8 +22,12 @@ class DemoApp {
     aligned_text: HTMLElement;
     file_input: HTMLInputElement;
     file_play: HTMLAudioElement;
+    start_button: HTMLButtonElement;
+    stop_button: HTMLButtonElement;
     spectrogram: HTMLCanvasElement;
     spectrogramImage: ImageData;
+    recorder: MediaRecorder | null = null;
+    chunks: Array<Blob> = [];
     audio_buffer: AudioBuffer | null = null;
     aligner_ready = false;
 
@@ -33,6 +37,8 @@ class DemoApp {
         this.aligned_text = document.getElementById("aligned-text") as HTMLElement;
         this.file_input = document.getElementById("file-input") as HTMLInputElement;
         this.file_play = document.getElementById("file-play") as HTMLAudioElement;
+        this.start_button = document.getElementById("record") as HTMLButtonElement;
+        this.stop_button = document.getElementById("stop") as HTMLButtonElement;
         this.spectrogram = document.getElementById("spectrogram") as HTMLCanvasElement;
     }
     
@@ -40,17 +46,14 @@ class DemoApp {
         this.status_bar.innerHTML = message;
     }
 
-    async load_audiofile() {
-        if (this.file_input.files !== null) {
-            const file = this.file_input.files[0];
-	    /* Set it up to play in the audio element */
-            this.file_play.src = URL.createObjectURL(file);
-	    /* Decode it into an AudioBuffer for alignment purposes */
-            const sampleRate = aligner.recognizer.get_config("samprate") as number;
-            const context = new AudioContext({ sampleRate });
-            this.audio_buffer = await context.decodeAudioData(await file.arrayBuffer());
-            this.draw_spectrogram();
-        }
+    async load_audiofile(audio_file: File | Blob) {
+	/* Set it up to play in the audio element */
+        this.file_play.src = URL.createObjectURL(audio_file);
+	/* Decode it into an AudioBuffer for alignment purposes */
+        const sampleRate = aligner.recognizer.get_config("samprate") as number;
+        const context = new AudioContext({ sampleRate });
+        this.audio_buffer = await context.decodeAudioData(await audio_file.arrayBuffer());
+        this.draw_spectrogram();
         this.text_input.value = "";
 	this.aligned_text.innerHTML = "";
         this.align_text();
@@ -182,6 +185,51 @@ class DemoApp {
 	}
     }
 
+    async create_recorder() {
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true,
+                                                                 video: false });
+        } catch (err) {
+            this.update_status("Failed to get media stream for microphone" + err);
+            return null;
+        }
+        const recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+        recorder.ondataavailable = (event: BlobEvent) => {
+            this.chunks.push(event.data);
+        };
+        recorder.onstop = (event: Event) => {
+            const blob = new Blob(this.chunks, { type: "audio/webm;codecs=opus" });
+            this.chunks = [];
+            this.load_audiofile(blob);
+        };
+        return recorder;
+    }
+
+    async start_recording() {
+        if (this.recorder === null) {
+            this.recorder = await this.create_recorder();
+            if (this.recorder === null) {
+                this.start_button.disabled = true;
+                this.stop_button.disabled = true;
+                return true;
+            }
+        }
+        this.start_button.disabled = true;
+        this.stop_button.disabled = false;
+        this.recorder.start();
+        return true;
+    }
+
+    async stop_recording() {
+        if (this.recorder !== null) {
+            this.recorder.stop();
+            this.start_button.disabled = false;
+            this.stop_button.disabled = true;
+        }
+        return true;
+    }
+
     async initialize() {
 	this.update_status("Waiting for speech recognition...");
         try {
@@ -196,8 +244,15 @@ class DemoApp {
 	    this.update_status("Error initializing speech aligner: "
 		+ e.message);
         }
-        this.file_input.addEventListener("change",
-                                         () => this.load_audiofile());
+        this.start_button.addEventListener("click",
+                                           () => this.start_recording());
+        this.start_button.disabled = false;
+        this.stop_button.addEventListener("click",
+                                          () => this.stop_recording());
+        this.file_input.addEventListener("change", () => {
+            if (this.file_input.files !== null)
+                this.load_audiofile(this.file_input.files[0]);
+        });
         this.text_input.addEventListener("input",
                                          debounce(() => this.align_text(),
                                                   INPUT_TIMEOUT));
