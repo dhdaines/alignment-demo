@@ -36,15 +36,21 @@
 	  <div class="pure-u-1-2">
 	    <div class="content-box">
 	      <form class="pure-form">
-		<label>Enter what you said:
-		  <textarea id="text-input" class="pure-input-1"></textarea>
+                <label for="language">Language:
+                  <select id="language" name="language">
+                    <option value="en-us" selected>English (en-us)</option>
+                    <option value="fr-fr">Français (fr-fr)</option>
+                  </select>
+                </label>
+		<label for="text-input">Enter what you said:
+		  <textarea id="text-input" name="text-input" class="pure-input-1"></textarea>
 		</label>
 	      </form>
 	    </div>
 	  </div>
 	  <div class="pure-u-1-2">
 	    <div class="content-box">
-              <span class="label">Alignment:</span><br>
+              <span class="label">Listen to alignments:</span><br>
 	      <div id="aligned-text">
 	      </div>
 	    </div>
