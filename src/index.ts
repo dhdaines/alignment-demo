@@ -52,6 +52,7 @@ class DemoApp {
             this.draw_spectrogram();
         }
         this.text_input.value = "";
+	this.aligned_text.innerHTML = "";
         this.align_text();
     }
 
@@ -61,18 +62,16 @@ class DemoApp {
             const { data, nfr, nfeat } = await aligner.recognizer.spectrogram(
                 this.audio_buffer.getChannelData(0));
             const frate = aligner.recognizer.get_config("frate") as number;
-            console.log(this.audio_buffer);
-            console.log(`nfr ${nfr} = ${nfr / frate} sec, nfeat ${nfeat}`);
             /* Plot it */
+            canvas.height = (nfeat - 1) * FILT_HEIGHT + 60;
             canvas.width = nfr * FRAME_WIDTH;
-            canvas.height = (nfeat - 1) * FILT_HEIGHT;
             const ctx = canvas.getContext("2d");
             if (ctx === null) {
                 this.update_status("Failed to get canvas context");
                 return;
             }
             ctx.save();
-            ctx.fillStyle = "#fffffff";
+            ctx.fillStyle = "white";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             let max_value = 0;
             for (let i = 0; i < data.length; i++)
@@ -128,8 +127,6 @@ class DemoApp {
         }
         ctx.putImageData(this.spectrogramImage, 0, 0);
         ctx.save()
-        ctx.strokeStyle = "red";
-        ctx.fillStyle = "red";
         ctx.font = "24px sans-serif";
         ctx.textBaseline = "top";
         ctx.textAlign = "center";
@@ -145,14 +142,12 @@ class DemoApp {
             }
             ctx.fillText(t, x_start + x_width / 2, 5);
             ctx.save();
-            ctx.strokeStyle = "green";
-            ctx.fillStyle = "green";
-            ctx.font = "14px sans-serif";
+            ctx.font = "18px sans-serif";
             const word_x_start = x_start;
             for (const { t, b, d } of w) {
                 const x_start = Math.round(b * frate * FRAME_WIDTH);
                 const x_width = Math.round(d * frate * FRAME_WIDTH);
-                ctx.fillText(t, x_start + x_width / 2, 40);
+                ctx.fillText(aligner.phoneset[t], x_start + x_width / 2, 40);
                 if (x_start != word_x_start) {
                     ctx.beginPath();
                     ctx.moveTo(x_start, 40);
@@ -177,7 +172,6 @@ class DemoApp {
 	    try {
 		const result = await aligner.align(this.audio_buffer,
 						   this.text_input.value);
-		console.log(result);
                 this.make_aligned_text(result);
                 this.draw_labels(result);
                 this.update_status("done!");
@@ -193,6 +187,8 @@ class DemoApp {
         try {
 	    await aligner.initialize({hmm: "model/en-us", /* Relative path */
 				      loglevel: "INFO"});
+            const nfeat = aligner.recognizer.get_config("nfilt") as number;
+            this.spectrogram.height = (nfeat - 1) * FILT_HEIGHT + 60;
 	    this.update_status("Speech recognition ready");
 	    this.aligner_ready = true;
         }

@@ -9,11 +9,14 @@ import soundswallower_factory, {
 
 var soundswallower: SoundSwallowerModule;
 export var recognizer: Decoder;
+export var phoneset: { [arpa: string]: string };
 
 export async function initialize(config: any) {
     soundswallower = await soundswallower_factory();
     recognizer = new soundswallower.Decoder(config);
-    return recognizer.initialize();
+    await recognizer.initialize();
+    const hmm = recognizer.get_config("hmm") as string;
+    phoneset = await soundswallower.load_json(hmm + "/phoneset.json");
 }
 
 export async function align(audio: AudioBuffer, text: string) {
