@@ -12,10 +12,15 @@ Copyright (c) Nicolas Gallagher and Jonathan Neal
 .content {
     padding: 1em;
 }
+
 .content-box {
     margin: 1ex;
     padding: 1em;
     border: solid black 1px;
+}
+
+.spectrogram-box {
+    overflow: scroll;
 }
 
 .title-bar, .status-bar {
