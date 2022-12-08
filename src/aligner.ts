@@ -4,6 +4,7 @@ import { AudioBuffer } from "standardized-audio-context";
 import soundswallower_factory, {
     Decoder,
     SoundSwallowerModule,
+    FeatureBuffer
 } from "soundswallower";
 
 var soundswallower: SoundSwallowerModule;
@@ -25,6 +26,6 @@ export async function align(audio: AudioBuffer, text: string) {
     console.log(audio);
     const nfr = await recognizer.process(audio.getChannelData(0), false, true);
     await recognizer.stop();
-    const jresult = await recognizer.get_alignment_json(0, 0);
+    const jresult = await recognizer.get_alignment_json(0, 1);
     return JSON.parse(jresult);
 }
