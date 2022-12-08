@@ -23,6 +23,10 @@ Copyright (c) Nicolas Gallagher and Jonathan Neal
     overflow: scroll;
 }
 
+#spectrogram {
+    height: 260px;
+}
+
 .title-bar, .status-bar {
     color: white;
     background: black;
