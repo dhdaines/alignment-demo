@@ -31,12 +31,10 @@ export async function align(audio: AudioBuffer, text: string) {
     await recognizer.reinitialize_audio();
   }
   text = text.toLowerCase();
-  await recognizer.set_align_text(text);
-  await recognizer.start();
+  recognizer.set_align_text(text);
+  recognizer.start();
   console.log(audio);
-  const nfr = await recognizer.process(audio.getChannelData(0), false, true);
-  await recognizer.stop();
-  const jresult = await recognizer.get_alignment_json(0, 1);
-  console.log("Alignment result: " + jresult);
-  return JSON.parse(jresult);
+  const nfr = recognizer.process_audio(audio.getChannelData(0), false, true);
+  recognizer.stop();
+  return recognizer.get_alignment({ align_level: 1 });
 }

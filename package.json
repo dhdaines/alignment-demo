@@ -1,6 +1,6 @@
 {
     "name": "alignment-demo",
-    "version": "0.4.2",
+    "version": "0.5.0",
     "description": "In-browser force alignment demo",
     "main": "src/index.js",
     "scripts": {
@@ -17,7 +17,7 @@
     "dependencies": {
         "debounce": "^1.2.1",
         "purecss": "^2.1.0",
-        "soundswallower": "^0.4.2",
+        "soundswallower": "^0.5.0",
         "standardized-audio-context": "^25.3.36"
     },
     "devDependencies": {

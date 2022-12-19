@@ -72,7 +72,7 @@ class DemoApp {
   async draw_spectrogram() {
     const canvas = this.spectrogram;
     if (this.audio_buffer !== null) {
-      const { data, nfr, nfeat } = await aligner.recognizer.spectrogram(
+      const { data, nfr, nfeat } = aligner.recognizer.spectrogram(
         this.audio_buffer.getChannelData(0)
       );
       const frate = aligner.recognizer.get_config("frate") as number;
