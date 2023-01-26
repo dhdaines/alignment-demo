@@ -17,7 +17,7 @@
   "dependencies": {
     "debounce": "^1.2.1",
     "purecss": "^2.1.0",
-    "soundswallower": "^0.5.0",
+    "soundswallower": "^0.6.0",
     "standardized-audio-context": "^25.3.36"
   },
   "devDependencies": {
