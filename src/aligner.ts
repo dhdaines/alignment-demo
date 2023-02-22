@@ -6,7 +6,7 @@ import soundswallower_factory, {
   SoundSwallowerModule,
   FeatureBuffer,
   Config,
-} from "soundswallower";
+} from "soundswallower/jsonly";
 
 var soundswallower: SoundSwallowerModule;
 export var recognizer: Decoder;
