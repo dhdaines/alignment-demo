@@ -202,6 +202,7 @@ class DemoApp {
         this.update_status("done!");
       } catch (e) {
         this.update_status("Error aligning: " + e.message);
+        throw e;
       }
     }
   }
