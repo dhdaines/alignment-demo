@@ -3,6 +3,7 @@
 import { AudioBuffer } from "standardized-audio-context";
 import soundswallower_factory, {
   Decoder,
+  Segment,
   DictEntry,
   SoundSwallowerModule,
   FeatureBuffer,
@@ -43,6 +44,7 @@ export class Aligner {
     const request = {
       in_lang: this.lang,
       out_lang: "eng-arpabet",
+      compose: true,
       text
     };
 
@@ -72,33 +74,37 @@ export class Aligner {
       tokpos.push([start, end]);
       start = end + 1; // space
     }
-    // Map  them through  each link  to  get output  extents (the API
-    // should maybe do this for us)
-    for (const link of g2p.links) {
-      const tokpos_next: Array<[number, number]> = [];
-      for (const [start, end] of tokpos) {
-        const tok: [number, number] = [-1, -1];
-        for (const [in_pos, out_pos] of link.alignments) {
-          if (start == in_pos && tok[0] == -1)
-            tok[0] = out_pos;
-          if (end - 1 == in_pos)
-            tok[1] = out_pos + 1;
-        }
-        tokpos_next.push(tok);
+    // Compose them with alignments get output extents
+    const edge = g2p.converted[0];
+    const tokpos_next: Array<[number, number]> = [];
+    for (const [start, end] of tokpos) {
+      const tok: [number, number] = [-1, -1];
+      for (const [in_pos, out_pos] of edge.alignments) {
+        if (start == in_pos && tok[0] == -1)
+          tok[0] = out_pos;
+        if (end - 1 == in_pos)
+          tok[1] = out_pos + 1;
       }
-      tokpos = tokpos_next;
+      tokpos_next.push(tok);
     }
+    tokpos = tokpos_next;
     // Tadam, here are our phones
-    const output = g2p.links[g2p.links.length - 1];
+    // except there might be other stuff in there too...
     const dict: Array<DictEntry> = [];
     for (const i in tokens) {
       const [start, end] = tokpos[i];
-      const phonestr = output.text.substring(start, end);
+      const phonestr = edge.text.substring(start, end);
       const entry: DictEntry = [tokens[i], phonestr];
       dict.push(entry);
     }
     this.recognizer.add_words(...dict);
     this.recognizer.set_align_text(g2p.source_text);
+  }
+
+  process_alignment(alignment: Segment, g2p: any) {
+    // Compose ARPABET with links in reverse until we get to some
+    // acceptable IPA
+    return alignment;
   }
 
   async align(audio: AudioBuffer, text: string) {
@@ -111,6 +117,7 @@ export class Aligner {
     this.recognizer.start();
     const nfr = this.recognizer.process_audio(audio.getChannelData(0), false, true);
     this.recognizer.stop();
-    return this.recognizer.get_alignment({ align_level: 1 });
+    const alignment = this.recognizer.get_alignment({ align_level: 1 });
+    return this.process_alignment(alignment, g2p);
   }
 }
