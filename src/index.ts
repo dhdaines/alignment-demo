@@ -16,9 +16,6 @@ const FRAME_WIDTH = 5;
 // Height of frequency bins in spectrogram
 const FILT_HEIGHT = 10;
 
-// Location of G2P API
-const G2P_API = "http://localhost:5000/api/v2";
-
 class DemoApp {
   status_bar: HTMLElement;
   text_input: HTMLTextAreaElement;
@@ -32,7 +29,6 @@ class DemoApp {
   spectrogramImage: ImageData;
   recorder: MediaRecorder | null = null;
   chunks: Array<Blob> = [];
-  langs: Array<string> = [];
   audio_buffer: AudioBuffer | null = null;
   aligner: Aligner;
 
@@ -176,7 +172,7 @@ class DemoApp {
       for (const { t, b, d } of w) {
         const x_start = Math.round(b * frate * FRAME_WIDTH);
         const x_width = Math.round(d * frate * FRAME_WIDTH);
-        ctx.fillText(this.aligner.phoneset[t], x_start + x_width / 2, 40);
+        ctx.fillText(t, x_start + x_width / 2, 40);
         if (x_start != word_x_start) {
           ctx.beginPath();
           ctx.moveTo(x_start, 40);
@@ -259,45 +255,30 @@ class DemoApp {
     return true;
   }
 
-  /*
-  async get_langs() {
-    const response = await fetch(`${G2P_API}/langs`);
-    if (response.ok)
-      this.langs = await response.json();
-    else
-      throw new Error(`Failed to fetch ${G2P_API}/langs: ${response.statusText}`);
-    this.language_list.innerHTML = "";
-    for (const lang of this.langs) {
-      if (lang.includes('-'))
-        continue;
-      const opt = document.createElement("option");
-      opt.value = lang;
-      opt.text = lang; // FIXME
-      this.language_list.add(opt);
-    }
-  } */
-
   async init_aligner() {
-    await this.aligner.initialize({ loglevel: "INFO" });
+    await this.aligner.initialize();
     const nfeat = this.aligner.recognizer.get_config("nfilt") as number;
     this.spectrogram.height = (nfeat - 1) * FILT_HEIGHT + 60;
   }
 
   async initialize() {
-/*
-    this.update_status("Fetching list of languages...");
-    try {
-      this.get_langs(); // FIXME: Do this in parallel with that
-    } catch (e) {
-      this.update_status("Error fetching list of languages: " + e.message);
-      return;
-    }*/
     this.update_status("Waiting for speech recognition...");
     try {
-      this.init_aligner();
+      await this.init_aligner();
     } catch (e) {
       this.update_status("Error initializing speech aligner: " + e.message);
       return;
+    }
+    this.language_list.innerHTML = "";
+    for (const lang of this.aligner.langs) {
+      if (lang.includes('-'))
+        continue;
+      const opt = document.createElement("option");
+      opt.value = lang;
+      opt.text = lang; // FIXME
+      if (lang == this.aligner.lang)
+        opt.selected = true;
+      this.language_list.add(opt);
     }
     this.update_status("Speech recognition ready");
     this.start_button.addEventListener("click", () => this.start_recording());
@@ -313,7 +294,7 @@ class DemoApp {
     );
     this.language_list.addEventListener("change", async () => {
       const idx = this.language_list.selectedIndex;
-      const lang = this.language_list.options[idx].value;
+      this.aligner.lang = this.language_list.options[idx].value;
       this.text_input.value = "";
       this.aligned_text.innerHTML = "";
       this.align_text();
