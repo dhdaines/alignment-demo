@@ -3,39 +3,112 @@
 import { AudioBuffer } from "standardized-audio-context";
 import soundswallower_factory, {
   Decoder,
+  DictEntry,
   SoundSwallowerModule,
   FeatureBuffer,
   Config,
 } from "soundswallower/jsonly";
 
+// Location of G2P API
+const G2P_API = "http://localhost:5000/api/v2";
+
 var soundswallower: SoundSwallowerModule;
 
 export class Aligner {
   public recognizer: Decoder;
-  public phoneset: { [arpa: string]: string };
+  public langs: Array<string> = [];
+  public lang: string = "und";
 
-  async initialize(config: Config) {
+  async initialize() {
     soundswallower = await soundswallower_factory();
-    this.reinitialize(config);
+    return Promise.all([this.reinitialize(), this.get_langs()]);
   }
 
-  async reinitialize(config: Config) {
-    this.recognizer = new soundswallower.Decoder(config);
+  async reinitialize() {
+    this.recognizer = new soundswallower.Decoder();
+    this.recognizer.unset_config("dict");
     await this.recognizer.initialize();
-    const hmm = this.recognizer.get_config("hmm") as string;
-    this.phoneset = await soundswallower.load_json(hmm + "/phoneset.json");
-    console.log("Configuration: " + this.recognizer.get_config_json());
+  }
+
+  async get_langs() {
+    const response = await fetch(`${G2P_API}/inputs_for/eng-arpabet`);
+    if (response.ok) this.langs = await response.json();
+    else
+      throw new Error(
+        `Failed to fetch ${G2P_API}/inputs_for/eng-arpabet: ${response.statusText}`
+      );
+  }
+
+  async convert(text: string) {
+    const request = {
+      in_lang: this.lang,
+      out_lang: "eng-arpabet",
+      text
+    };
+
+    const response = await fetch(`${G2P_API}/convert`, {
+      method: "POST",
+      body: JSON.stringify(request),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+    if (response.ok) return response.json();
+    else {
+      const detail = await response.json();
+      console.log(detail);
+      throw new Error(
+        `Failed to fetch ${G2P_API}/convert: ${detail.detail[0].msg}`
+      );
+    }
+  }
+
+  setup_alignment(tokens: Array<string>, g2p: any) {
+    // Construct array of input token extents
+    let start = 0;
+    let tokpos: Array<[number, number]> = [];
+    for (const tok of tokens) {
+      let end = start + tok.length;
+      tokpos.push([start, end]);
+      start = end + 1; // space
+    }
+    // Map  them through  each link  to  get output  extents (the API
+    // should maybe do this for us)
+    for (const link of g2p.links) {
+      const tokpos_next: Array<[number, number]> = [];
+      for (const [start, end] of tokpos) {
+        const tok: [number, number] = [-1, -1];
+        for (const [in_pos, out_pos] of link.alignments) {
+          if (start == in_pos && tok[0] == -1)
+            tok[0] = out_pos;
+          if (end - 1 == in_pos)
+            tok[1] = out_pos + 1;
+        }
+        tokpos_next.push(tok);
+      }
+      tokpos = tokpos_next;
+    }
+    // Tadam, here are our phones
+    const output = g2p.links[g2p.links.length - 1];
+    const dict: Array<DictEntry> = [];
+    for (const i in tokens) {
+      const [start, end] = tokpos[i];
+      const phonestr = output.text.substring(start, end);
+      const entry: DictEntry = [tokens[i], phonestr];
+      dict.push(entry);
+    }
+    this.recognizer.add_words(...dict);
+    this.recognizer.set_align_text(g2p.source_text);
   }
 
   async align(audio: AudioBuffer, text: string) {
-    if (this.recognizer.get_config("samprate") != audio.sampleRate) {
+    if (this.recognizer.get_config("samprate") != audio.sampleRate)
       this.recognizer.set_config("samprate", audio.sampleRate);
-      await this.recognizer.reinitialize_audio();
-    }
-    text = text.toLowerCase();
-    this.recognizer.set_align_text(text);
+    await this.recognizer.initialize();
+    const tokens = text.trim().split(/\s+/);
+    const g2p = await this.convert(tokens.join(" "));
+    this.setup_alignment(tokens, g2p);
     this.recognizer.start();
-    console.log(audio);
     const nfr = this.recognizer.process_audio(audio.getChannelData(0), false, true);
     this.recognizer.stop();
     return this.recognizer.get_alignment({ align_level: 1 });
