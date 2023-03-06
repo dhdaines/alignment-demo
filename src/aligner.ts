@@ -42,14 +42,28 @@ export class Aligner {
       );
   }
 
-  async convert(text: string) {
+  async convert(text: string): Promise<Array<any>> {
+    let response = await fetch(`${G2P_API}/path/${this.lang}/eng-arpabet`);
+    let path = [];
+    if (response.ok) path = await response.json()
+    else
+      throw new Error(
+        `Failed to fetch ${G2P_API}/path/${this.lang}/eng-arpabet: ${response.statusText}`
+      );
+    let ipa_lang = `${this.lang}-ipa`;
+    for (const lang of path) {
+      if (lang.includes("-ipa")) {
+        ipa_lang = lang;
+        break;
+      }
+    }
     const request = {
       in_lang: this.lang,
       out_lang: "eng-arpabet",
+      compose_from: ipa_lang,
       text
     };
-
-    const response = await fetch(`${G2P_API}/convert`, {
+    response = await fetch(`${G2P_API}/convert`, {
       method: "POST",
       body: JSON.stringify(request),
       headers: {
@@ -66,105 +80,46 @@ export class Aligner {
     }
   }
 
-  setup_alignment(tokens: Array<string>, g2p: any) {
-    // Construct array of input token extents
-    let start = 0;
-    let input_tokens: Array<Extent> = [];
-    for (const tok of tokens) {
-      let end = start + tok.length;
-      input_tokens.push([start, end]);
-      start = end + 1; // space
-    }
-    // Compose them with alignments to get output extents
-    const converted = g2p.converted.slice().reverse();
-    let output_tokens: Array<Extent> = [];
-    for (const edge of converted) {
-      output_tokens = [];
-      for (const [start, end] of input_tokens) {
-        const tok: Extent = [-1, -1];
-        for (const [in_pos, out_pos] of edge.alignments) {
-          if (start == in_pos && tok[0] == -1)
-            tok[0] = out_pos;
-          if (end - 1 == in_pos)
-            tok[1] = out_pos + 1;
-        }
-        output_tokens.push(tok);
-      }
-      input_tokens = output_tokens;
-    }
-    // Tadam, here are our phones
-    // except there might be other stuff in there too...
+  setup_alignment(g2p: Array<any>) {
     const dict: Array<DictEntry> = [];
-    // NOTE: substring considered harmful, but we will change the API actually...
-    const chars = Array.from(g2p.converted[0].text);
-    for (const i in tokens) {
-      const [start, end] = output_tokens[i];
-      const phonestr = chars.slice(start, end).join("");
-      const entry: DictEntry = [tokens[i], phonestr];
-      dict.push(entry);
+    for (const token of g2p) {
+      if (token.conversions.length === 0 || token.conversions[0].out_lang === null)
+        continue;
+      const final: Array<any> = token.conversions[0].alignments;
+      const initial: Array<any> = token.conversions[token.conversions.length - 1].alignments;
+      const phones = final.map(alignment => alignment[1]).join("");
+      const word = initial.map(alignment => alignment[0]).join("");
+      dict.push([word, phones]);
     }
     this.recognizer.add_words(...dict);
-    this.recognizer.set_align_text(g2p.source_text);
+    const source_text = dict.map(entry => entry[0]).join(" ");
+    this.recognizer.set_align_text(source_text);
   }
 
-  process_alignment(alignment: Segment, g2p: any) {
-    const output_text = g2p.converted[0].text;
-    // Construct array of output phone extents
-    let pos = 0;
-    let output_tokens: Array<Extent> = [];
+  process_alignment(alignment: Segment, g2p: Array<any>) {
     if (!alignment.w)
       return alignment;
-    for (const { t, b, d, w } of alignment.w) {
-      // FIXME: Need to add is_noise() or something to SoundSwallower
-      if (!w || t == "<sil>") continue;
-      for (const { t } of w) {
-        // FIXME: This may be mismatched with the alignments because they are in code points, not code units
-        const start = output_text.indexOf(t, pos);
-        if (start == -1)
-          throw new Error(`Could not find ${t} at ${pos} (${output_text.substr(pos)})`);
-        // FIXME: This may be mismatched with the alignments because they are in code points, not code units
-        const end = start + t.length;
-        pos = end;
-        output_tokens.push([start, end]);
-      }
-    }
-    console.log(JSON.stringify(output_tokens.map(([start, end]) => output_text.substring(start, end))));
-    // Walk them back to the first ipa conversion
-    let input_tokens: Array<Extent> = [];
-    // NOTE that we do this in the provided order this time
-    let last_ipa_idx = 0;
-    for (let idx = 0; idx < g2p.converted.length; idx++)
-      if (g2p.converted[idx].out_lang.includes("-ipa"))
-        last_ipa_idx = idx;
-    console.log(last_ipa_idx);
-    const input_text = g2p.converted[last_ipa_idx].text;
-    for (let idx = 0; idx < g2p.converted.length; idx++) {
-      if (idx == last_ipa_idx) break;
-      const edge = g2p.converted[idx];
-      input_tokens = [];
-      for (const [start, end] of output_tokens) {
-        const tok: Extent = [-1, -1];
-        for (const [in_pos, out_pos] of edge.alignments) {
-          if (start == out_pos && tok[0] == -1)
-            tok[0] = in_pos;
-          if (end - 1 == out_pos)
-            tok[1] = in_pos + 1;
-        }
-        input_tokens.push(tok);
-      }
-      output_tokens = input_tokens;
-    }
-    console.log(JSON.stringify(input_tokens.map(x => input_text.substring(...x))));
-    // Now splice them into the original alignment!
     let idx = 0;
-    for (const { t, b, d, w } of alignment.w) {
-      // FIXME: Need to add is_noise() or something to SoundSwallower
-      if (!w || t == "<sil>") continue;
-      for (let jdx = 0; jdx < w.length; jdx++) {
-        w[jdx].t = input_text.substring(...input_tokens[idx++]);
+    const words = alignment.w;
+    for (const token of g2p) {
+      if (token.conversions.length === 0 || token.conversions[0].out_lang === null)
+        continue;
+      // Double-check that the words line up
+      const initial: Array<any> = token.conversions[token.conversions.length - 1].alignments;
+      const word = initial.map(alignment => alignment[0]).join("");
+      while (!words[idx].w || words[idx].t == "<sil>") idx++; // FIXME: need other noise
+      const seg = words[idx];
+      if (seg.t !== word)
+        throw new Error(`Mismatch in segment ${idx}: ${seg.t} != ${word}`);
+      idx++;
+
+      // Map the phones (most of the work done by compose_from)
+      const final: Array<any> = token.conversions[0].alignments;
+      for (let jdx = 0; jdx < seg.w!.length; jdx++) {
+        seg.w![jdx].t = final[jdx][0];
       }
+      console.log(JSON.stringify(seg))
     }
-    console.log(JSON.stringify(alignment));
     return alignment;
   }
 
@@ -172,9 +127,9 @@ export class Aligner {
     if (this.recognizer.get_config("samprate") != audio.sampleRate)
       this.recognizer.set_config("samprate", audio.sampleRate);
     await this.recognizer.initialize();
-    const tokens = text.trim().split(/\s+/);
-    const g2p = await this.convert(tokens.join(" "));
-    this.setup_alignment(tokens, g2p);
+    const g2p = await this.convert(text);
+    console.log(JSON.stringify(g2p));
+    this.setup_alignment(g2p);
     this.recognizer.start();
     const nfr = this.recognizer.process_audio(audio.getChannelData(0), false, true);
     this.recognizer.stop();
