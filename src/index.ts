@@ -271,13 +271,11 @@ class DemoApp {
       return;
     }
     this.language_list.innerHTML = "";
-    for (const lang of this.aligner.langs) {
-      if (lang.includes('-'))
-        continue;
+    for (const {code, name} of this.aligner.langs) {
       const opt = document.createElement("option");
-      opt.value = lang;
-      opt.text = lang; // FIXME
-      if (lang == this.aligner.lang)
+      opt.value = code;
+      opt.text = `${name} (${code})`;
+      if (code == this.aligner.lang)
         opt.selected = true;
       this.language_list.add(opt);
     }

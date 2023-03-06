@@ -16,10 +16,14 @@ const G2P_API = "http://localhost:5000/api/v2";
 var soundswallower: SoundSwallowerModule;
 
 type Extent = [number, number];
+export interface SupportedLanguage {
+  code: string;
+  name: string | null;
+};
 
 export class Aligner {
   public recognizer: Decoder;
-  public langs: Array<string> = [];
+  public langs: Array<SupportedLanguage> = [];
   public lang: string = "und";
 
   async initialize() {
@@ -34,11 +38,11 @@ export class Aligner {
   }
 
   async get_langs() {
-    const response = await fetch(`${G2P_API}/inputs_for/eng-arpabet`);
+    const response = await fetch(`${G2P_API}/langs`);
     if (response.ok) this.langs = await response.json();
     else
       throw new Error(
-        `Failed to fetch ${G2P_API}/inputs_for/eng-arpabet: ${response.statusText}`
+        `Failed to fetch ${G2P_API}/langs: ${response.statusText}`
       );
   }
 
