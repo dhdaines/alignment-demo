@@ -87,6 +87,7 @@ export class Aligner {
   setup_alignment(g2p: Array<any>) {
     const dict: Array<DictEntry> = [];
     for (const token of g2p) {
+      console.log(JSON.stringify(token));
       if (token.conversions.length === 0 || token.conversions[0].out_lang === null)
         continue;
       const final: Array<any> = token.conversions[0].alignments;
@@ -112,17 +113,38 @@ export class Aligner {
       const initial: Array<any> = token.conversions[token.conversions.length - 1].alignments;
       const word = initial.map(alignment => alignment[0]).join("");
       while (!words[idx].w || words[idx].t == "<sil>") idx++; // FIXME: need other noise
-      const seg = words[idx];
-      if (seg.t !== word)
-        throw new Error(`Mismatch in segment ${idx}: ${seg.t} != ${word}`);
+      const wordseg = words[idx];
+      if (wordseg.t !== word)
+        throw new Error(`Mismatch in segment ${idx}: ${wordseg.t} != ${word}`);
       idx++;
 
-      // Map the phones (most of the work done by compose_from)
-      const final: Array<any> = token.conversions[0].alignments;
-      for (let jdx = 0; jdx < seg.w!.length; jdx++) {
-        seg.w![jdx].t = final[jdx][0];
+      // Map the phones.  Note that the output alignments, being
+      // character-based, do not necessarily correspond to ARPABET phones.
+      // They are either 1-N (one IPA character, which could be a diacritic,
+      // to one or more output characters) or N-1 (multiple IPA characters
+      // to one output character).  In either case due to the nature of
+      // ARPABET we can be certain that each output alignment is a
+      // *maximum* of one ARPABET symbol, thus we just need to collect
+      // all of the input alignments that correspond to each output phone.
+      const input: Array<any> = token.conversions[0].alignments;
+      const output: Array<Segment> = wordseg.w!;
+      let input_idx = 0;
+      let output_idx = 0;
+      let input_phone = "";
+      let output_phone = "";
+      while (output_idx < output.length && input_idx < input.length) {
+        while (output_phone.length < output[output_idx].t.length) {
+          const [ipa, arpa] = input[input_idx];
+          input_phone += ipa;
+          output_phone += arpa;
+          input_idx++;
+        }
+        output[output_idx].t = input_phone;
+        input_phone = "";
+        output_phone = "";
+        output_idx++;
       }
-      console.log(JSON.stringify(seg))
+      console.log(JSON.stringify(wordseg))
     }
     return alignment;
   }
