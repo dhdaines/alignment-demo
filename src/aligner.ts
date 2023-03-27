@@ -85,20 +85,21 @@ export class Aligner {
   }
 
   setup_alignment(g2p: Array<any>) {
-    const dict: Array<DictEntry> = [];
+    const words: Array<string> = [];
+    const dict = new Map<string, string>();
     for (const token of g2p) {
       console.log(JSON.stringify(token));
       if (token.conversions.length === 0 || token.conversions[0].out_lang === null)
         continue;
-      const final: Array<any> = token.conversions[0].alignments;
-      const initial: Array<any> = token.conversions[token.conversions.length - 1].alignments;
+      const final: Array<any> = token.conversions[0].substring_alignments;
+      const initial: Array<any> = token.conversions[token.conversions.length - 1].substring_alignments;
       const phones = final.map(alignment => alignment[1]).join("");
       const word = initial.map(alignment => alignment[0]).join("");
-      dict.push([word, phones]);
+      words.push(word)
+      dict.set(word, phones);
     }
-    this.recognizer.add_words(...dict);
-    const source_text = dict.map(entry => entry[0]).join(" ");
-    this.recognizer.set_align_text(source_text);
+    this.recognizer.add_words(...Array.from(dict.entries()));
+    this.recognizer.set_align_text(words.join(" "));
   }
 
   process_alignment(alignment: Segment, g2p: Array<any>) {
@@ -110,7 +111,7 @@ export class Aligner {
       if (token.conversions.length === 0 || token.conversions[0].out_lang === null)
         continue;
       // Double-check that the words line up
-      const initial: Array<any> = token.conversions[token.conversions.length - 1].alignments;
+      const initial: Array<any> = token.conversions[token.conversions.length - 1].substring_alignments;
       const word = initial.map(alignment => alignment[0]).join("");
       while (!words[idx].w || words[idx].t == "<sil>") idx++; // FIXME: need other noise
       const wordseg = words[idx];
@@ -119,34 +120,39 @@ export class Aligner {
       idx++;
 
       // Map the phones.  Note that the output alignments, being
-      // character-based, do not necessarily correspond to ARPABET phones.
-      // They are either 1-N (one IPA character, which could be a diacritic,
-      // to one or more output characters) or N-1 (multiple IPA characters
-      // to one output character).  In either case due to the nature of
-      // ARPABET we can be certain that each output alignment is a
-      // *maximum* of one ARPABET symbol, thus we just need to collect
-      // all of the input alignments that correspond to each output phone.
-      const input: Array<any> = token.conversions[0].alignments;
+      // character-based, do not necessarily correspond to ARPABET
+      // phones.  Sadly this is a limitation of G2P, no way around it.
+      const input: Array<any> = token.conversions[0].substring_alignments;
       const output: Array<Segment> = wordseg.w!;
       let input_idx = 0;
       let output_idx = 0;
       let input_phone = "";
       let output_phone = "";
       while (output_idx < output.length && input_idx < input.length) {
-        while (output_phone.length < output[output_idx].t.length) {
+        const orig_output = output[output_idx].t;
+        // FIXME: This is not entirely correct...
+        while (output_phone.length < orig_output.length) {
           const [ipa, arpa] = input[input_idx];
           input_phone += ipa;
           output_phone += arpa;
           input_idx++;
         }
+        // NOTE: depends on having space as delimiters...
+        const output_phones = output_phone.split(" ").filter(p => p.length);
+        // console.log(input_phone, output_phones)
         output[output_idx].t = input_phone;
+        for (let idx = 1; idx < output_phones.length; idx++) {
+          output[output_idx].d += output[output_idx + idx].d;
+          delete output[output_idx + idx]
+        }
+        output_idx += output_phones.length;
         input_phone = "";
         output_phone = "";
-        output_idx++;
       }
-      console.log(JSON.stringify(wordseg))
+      wordseg.w = output.filter(s => typeof(s) !== "undefined");
+      // console.log(JSON.stringify(wordseg))
     }
-    return alignment;
+    return alignment
   }
 
   async align(audio: AudioBuffer, text: string) {
@@ -154,7 +160,7 @@ export class Aligner {
       this.recognizer.set_config("samprate", audio.sampleRate);
     await this.recognizer.initialize();
     const g2p = await this.convert(text);
-    console.log(JSON.stringify(g2p));
+    // console.log(JSON.stringify(g2p));
     this.setup_alignment(g2p);
     this.recognizer.start();
     const nfr = this.recognizer.process_audio(audio.getChannelData(0), false, true);
