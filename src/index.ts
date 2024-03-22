@@ -218,14 +218,33 @@ class DemoApp {
       this.update_status("Failed to get media stream for microphone" + err);
       return null;
     }
+    // Try to find a MIME type supported by your (Apple's) stupid browser
+    const types = [
+      "audio/webm;codecs=opus",
+      "audio/mpeg",
+      "audio/mp4",
+      "audio/wav",
+    ];
+    let mimeType: string | null = null;
+    for (const type of types) {
+      if (MediaRecorder.isTypeSupported(type)) {
+        mimeType = type;
+        break;
+      }
+    }
+    if (mimeType === null) {
+      alert("Your browser doesn't support any kind of audio recording!");
+      this.start_button.disabled = true;
+      return null;
+    }
     const recorder = new MediaRecorder(stream, {
-      mimeType: "audio/webm;codecs=opus",
+      mimeType
     });
     recorder.ondataavailable = (event: BlobEvent) => {
       this.chunks.push(event.data);
     };
-    recorder.onstop = (event: Event) => {
-      const blob = new Blob(this.chunks, { type: "audio/webm;codecs=opus" });
+    recorder.onstop = () => {
+      const blob = new Blob(this.chunks, { type: mimeType || undefined });
       this.chunks = [];
       this.load_audiofile(blob);
     };

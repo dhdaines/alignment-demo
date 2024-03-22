@@ -4,10 +4,7 @@ import { AudioBuffer } from "standardized-audio-context";
 import soundswallower_factory, {
   Decoder,
   Segment,
-  DictEntry,
   SoundSwallowerModule,
-  FeatureBuffer,
-  Config,
 } from "soundswallower/jsonly";
 
 // Location of G2P API
