@@ -1,6 +1,6 @@
 {
   "name": "alignment-demo",
-  "version": "0.6.3",
+  "version": "1.0.0",
   "description": "In-browser force alignment demo",
   "type": "module",
   "scripts": {

@@ -9,7 +9,7 @@ const isProduction = process.env.NODE_ENV == "production";
 const config = {
   entry: "./src/index.ts",
   output: {
-    path: path.resolve(__dirname, "docs"),
+    path: path.resolve(__dirname, "dist"),
     clean: true,
   },
   devServer: {
