@@ -1,9 +1,9 @@
-// Copyright (c) 2022 David Huggins-Daines <dhdaines@gmail.com>
+// Copyright (c) 2022 David Huggins-Daines <dhd@ecolingui.ca>
 // MIT license, see LICENSE for details
 
 import { AudioContext, AudioBuffer } from "standardized-audio-context";
 import { debounce } from "debounce";
-import * as aligner from "./aligner";
+import { Aligner } from "./aligner";
 
 require("purecss");
 require("./index.css");
@@ -30,7 +30,7 @@ class DemoApp {
   recorder: MediaRecorder | null = null;
   chunks: Array<Blob> = [];
   audio_buffer: AudioBuffer | null = null;
-  aligner_ready = false;
+  aligner: Aligner;
 
   constructor() {
     this.status_bar = document.getElementById("status-bar") as HTMLElement;
@@ -48,6 +48,7 @@ class DemoApp {
     this.spectrogram = document.getElementById(
       "spectrogram"
     ) as HTMLCanvasElement;
+    this.aligner = new Aligner();
   }
 
   update_status(message: string) {
@@ -58,7 +59,7 @@ class DemoApp {
     /* Set it up to play in the audio element */
     this.file_play.src = URL.createObjectURL(audio_file);
     /* Decode it into an AudioBuffer for alignment purposes */
-    const sampleRate = aligner.recognizer.get_config("samprate") as number;
+    const sampleRate = this.aligner.recognizer.get_config("samprate") as number;
     const context = new AudioContext({ sampleRate });
     this.audio_buffer = await context.decodeAudioData(
       await audio_file.arrayBuffer()
@@ -72,10 +73,10 @@ class DemoApp {
   async draw_spectrogram() {
     const canvas = this.spectrogram;
     if (this.audio_buffer !== null) {
-      const { data, nfr, nfeat } = aligner.recognizer.spectrogram(
+      const { data, nfr, nfeat } = this.aligner.recognizer.spectrogram(
         this.audio_buffer.getChannelData(0)
       );
-      const frate = aligner.recognizer.get_config("frate") as number;
+      const frate = this.aligner.recognizer.get_config("frate") as number;
       /* Plot it */
       canvas.height = (nfeat - 1) * FILT_HEIGHT + 60;
       canvas.width = nfr * FRAME_WIDTH;
@@ -154,7 +155,7 @@ class DemoApp {
     ctx.font = "24px sans-serif";
     ctx.textBaseline = "top";
     ctx.textAlign = "center";
-    const frate = aligner.recognizer.get_config("frate") as number;
+    const frate = this.aligner.recognizer.get_config("frate") as number;
     for (const { t, b, d, w } of result.w) {
       const x_start = Math.round(b * frate * FRAME_WIDTH);
       const x_width = Math.round(d * frate * FRAME_WIDTH);
@@ -171,7 +172,7 @@ class DemoApp {
       for (const { t, b, d } of w) {
         const x_start = Math.round(b * frate * FRAME_WIDTH);
         const x_width = Math.round(d * frate * FRAME_WIDTH);
-        ctx.fillText(aligner.phoneset[t], x_start + x_width / 2, 40);
+        ctx.fillText(t, x_start + x_width / 2, 40);
         if (x_start != word_x_start) {
           ctx.beginPath();
           ctx.moveTo(x_start, 40);
@@ -192,7 +193,7 @@ class DemoApp {
     } else {
       this.update_status("Aligning...");
       try {
-        const result = await aligner.align(
+        const result = await this.aligner.align(
           this.audio_buffer,
           this.text_input.value
         );
@@ -201,6 +202,7 @@ class DemoApp {
         this.update_status("done!");
       } catch (e) {
         this.update_status("Error aligning: " + e.message);
+        throw e;
       }
     }
   }
@@ -216,14 +218,33 @@ class DemoApp {
       this.update_status("Failed to get media stream for microphone" + err);
       return null;
     }
+    // Try to find a MIME type supported by your (Apple's) stupid browser
+    const types = [
+      "audio/webm;codecs=opus",
+      "audio/mpeg",
+      "audio/mp4",
+      "audio/wav",
+    ];
+    let mimeType: string | null = null;
+    for (const type of types) {
+      if (MediaRecorder.isTypeSupported(type)) {
+        mimeType = type;
+        break;
+      }
+    }
+    if (mimeType === null) {
+      alert("Your browser doesn't support any kind of audio recording!");
+      this.start_button.disabled = true;
+      return null;
+    }
     const recorder = new MediaRecorder(stream, {
-      mimeType: "audio/webm;codecs=opus",
+      mimeType
     });
     recorder.ondataavailable = (event: BlobEvent) => {
       this.chunks.push(event.data);
     };
-    recorder.onstop = (event: Event) => {
-      const blob = new Blob(this.chunks, { type: "audio/webm;codecs=opus" });
+    recorder.onstop = () => {
+      const blob = new Blob(this.chunks, { type: mimeType || undefined });
       this.chunks = [];
       this.load_audiofile(blob);
     };
@@ -254,17 +275,30 @@ class DemoApp {
     return true;
   }
 
+  async init_aligner() {
+    await this.aligner.initialize();
+    const nfeat = this.aligner.recognizer.get_config("nfilt") as number;
+    this.spectrogram.height = (nfeat - 1) * FILT_HEIGHT + 60;
+  }
+
   async initialize() {
     this.update_status("Waiting for speech recognition...");
     try {
-      await aligner.initialize({ loglevel: "INFO" });
-      const nfeat = aligner.recognizer.get_config("nfilt") as number;
-      this.spectrogram.height = (nfeat - 1) * FILT_HEIGHT + 60;
-      this.update_status("Speech recognition ready");
-      this.aligner_ready = true;
+      await this.init_aligner();
     } catch (e) {
       this.update_status("Error initializing speech aligner: " + e.message);
+      return;
     }
+    this.language_list.innerHTML = "";
+    for (const {code, name} of this.aligner.langs) {
+      const opt = document.createElement("option");
+      opt.value = code;
+      opt.text = `${name} (${code})`;
+      if (code == this.aligner.lang)
+        opt.selected = true;
+      this.language_list.add(opt);
+    }
+    this.update_status("Speech recognition ready");
     this.start_button.addEventListener("click", () => this.start_recording());
     this.start_button.disabled = false;
     this.stop_button.addEventListener("click", () => this.stop_recording());
@@ -278,14 +312,7 @@ class DemoApp {
     );
     this.language_list.addEventListener("change", async () => {
       const idx = this.language_list.selectedIndex;
-      const lang = this.language_list.options[idx].value;
-      this.update_status(`Setting language to ${lang}...`);
-      try {
-        await aligner.reinitialize({ hmm: "model/" + lang });
-        this.update_status("Speech recognition ready");
-      } catch (e) {
-        this.update_status("Error reinitializing speech aligner: " + e.message);
-      }
+      this.aligner.lang = this.language_list.options[idx].value;
       this.text_input.value = "";
       this.aligned_text.innerHTML = "";
       this.align_text();

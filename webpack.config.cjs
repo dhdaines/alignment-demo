@@ -73,6 +73,7 @@ module.exports = () => {
     config.mode = "production";
   } else {
     config.mode = "development";
+    config.devtool = "eval-source-map";
   }
   return config;
 };
