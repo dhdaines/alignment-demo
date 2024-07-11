@@ -239,7 +239,7 @@ class DemoApp {
   }
 
   async create_recorder() {
-    let stream;
+    let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
@@ -278,6 +278,9 @@ class DemoApp {
       const blob = new Blob(this.chunks, { type: mimeType || undefined });
       this.chunks = [];
       this.load_audiofile(blob);
+      for (const track of stream.getTracks())
+        track.stop();
+      this.recorder = null;
     };
     return recorder;
   }
