@@ -33,7 +33,7 @@ jobs:
         run: npm ci
       - name: Build
         run: |
-          perl -i -pe 's/localhost:5000/aligner.ecolingui.ca/' src/aligner.ts
+          perl -i -pe 's,http://localhost:5000,https://aligner.ecolingui.ca,' src/aligner.ts
           npm run build
       - name: Setup Pages
         uses: actions/configure-pages@v5
