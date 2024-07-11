@@ -1,6 +1,6 @@
 {
   "name": "alignment-demo",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "In-browser force alignment demo",
   "type": "module",
   "scripts": {
@@ -15,23 +15,25 @@
   "author": "David Huggins-Daines <dhdaines@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "debounce": "^1.2.1",
-    "purecss": "^2.1.0",
+    "audio-recorder-polyfill": "^0.4.1",
+    "debounce": "^2.1.0",
+    "purecss": "^3.0.0",
     "soundswallower": "^0.6.3",
-    "standardized-audio-context": "^25.3.36"
+    "standardized-audio-context": "^25.3.74"
   },
   "devDependencies": {
-    "@types/debounce": "^1.2.1",
-    "copy-webpack-plugin": "^11.0.0",
-    "css-loader": "^6.7.1",
+    "@types/debounce": "^1.2.4",
+    "@types/node": "^20.14.10",
+    "copy-webpack-plugin": "^12.0.2",
+    "css-loader": "^7.1.2",
     "file-loader": "^6.2.0",
-    "html-webpack-plugin": "^5.5.0",
-    "mini-css-extract-plugin": "^2.6.0",
-    "mocha": "^10.0.0",
-    "ts-loader": "^9.4.2",
-    "typescript": "^4.9.3",
-    "webpack": "^5.72.1",
-    "webpack-cli": "^4.9.2",
-    "webpack-dev-server": "^4.9.0"
+    "html-webpack-plugin": "^5.6.0",
+    "mini-css-extract-plugin": "^2.9.0",
+    "mocha": "^10.6.0",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.5.3",
+    "webpack": "^5.92.1",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^5.0.4"
   }
 }

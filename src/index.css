@@ -29,3 +29,16 @@
 .title-bar h1 {
     margin: 0;
 }
+
+.labels {
+    display: flex;
+    flex-direction: row;
+}
+
+.labels > div {
+    flex: 1;
+}
+
+.hidden {
+    display: none;
+}
