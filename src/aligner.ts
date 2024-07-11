@@ -1,3 +1,4 @@
+// -*- js-indent-level: 2 -*-
 // Copyright (c) 2022 David Huggins-Daines <dhd@ecolingui.ca>
 
 import { AudioBuffer } from "standardized-audio-context";
@@ -6,13 +7,12 @@ import soundswallower_factory, {
   Segment,
   SoundSwallowerModule,
 } from "soundswallower/jsonly";
-
+export { Segment };
 // Location of G2P API
 const G2P_API = "http://localhost:5000/api/v2";
 
 var soundswallower: SoundSwallowerModule;
 
-type Extent = [number, number];
 export interface SupportedLanguage {
   code: string;
   name: string | null;
@@ -99,7 +99,7 @@ export class Aligner {
     this.recognizer.set_align_text(words.join(" "));
   }
 
-  process_alignment(alignment: Segment, g2p: Array<any>) {
+  process_alignment(alignment: Segment, g2p: Array<any>): Segment {
     if (!alignment.w)
       return alignment;
     let idx = 0;
@@ -152,7 +152,7 @@ export class Aligner {
     return alignment
   }
 
-  async align(audio: AudioBuffer, text: string) {
+  async align(audio: AudioBuffer, text: string): Promise<Segment> {
     if (this.recognizer.get_config("samprate") != audio.sampleRate)
       this.recognizer.set_config("samprate", audio.sampleRate);
     await this.recognizer.initialize();
@@ -160,7 +160,7 @@ export class Aligner {
     // console.log(JSON.stringify(g2p));
     this.setup_alignment(g2p);
     this.recognizer.start();
-    const nfr = this.recognizer.process_audio(audio.getChannelData(0), false, true);
+    this.recognizer.process_audio(audio.getChannelData(0), false, true);
     this.recognizer.stop();
     const alignment = this.recognizer.get_alignment({ align_level: 1 });
     return this.process_alignment(alignment, g2p);

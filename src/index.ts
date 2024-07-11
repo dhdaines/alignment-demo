@@ -1,9 +1,10 @@
+// -*- js-indent-level: 2 -*-
 // Copyright (c) 2022 David Huggins-Daines <dhd@ecolingui.ca>
 // MIT license, see LICENSE for details
 
 import { AudioContext, AudioBuffer } from "standardized-audio-context";
 import { debounce } from "debounce";
-import { Aligner } from "./aligner";
+import { Aligner, Segment } from "./aligner";
 
 require("purecss");
 require("./index.css");
@@ -20,6 +21,9 @@ class DemoApp {
   status_bar: HTMLElement;
   text_input: HTMLTextAreaElement;
   aligned_text: HTMLElement;
+  download: HTMLElement;
+  download_audio: HTMLElement;
+  download_alignment: HTMLElement;
   file_input: HTMLInputElement;
   file_play: HTMLAudioElement;
   start_button: HTMLButtonElement;
@@ -37,6 +41,9 @@ class DemoApp {
     this.text_input = document.getElementById(
       "text-input"
     ) as HTMLTextAreaElement;
+    this.download = document.getElementById("download") as HTMLElement;
+    this.download_audio = document.getElementById("download_audio") as HTMLElement;
+    this.download_alignment = document.getElementById("download_alignment") as HTMLElement;
     this.aligned_text = document.getElementById("aligned-text") as HTMLElement;
     this.file_input = document.getElementById("file-input") as HTMLInputElement;
     this.file_play = document.getElementById("file-play") as HTMLAudioElement;
@@ -57,7 +64,12 @@ class DemoApp {
 
   async load_audiofile(audio_file: File | Blob) {
     /* Set it up to play in the audio element */
+    if (this.file_play.src)
+      URL.revokeObjectURL(this.file_play.src);
     this.file_play.src = URL.createObjectURL(audio_file);
+    this.download_audio.setAttribute("href", this.file_play.src)
+    this.download_audio.classList.remove("hidden");
+    this.download.classList.remove("hidden");
     /* Decode it into an AudioBuffer for alignment purposes */
     const sampleRate = this.aligner.recognizer.get_config("samprate") as number;
     const context = new AudioContext({ sampleRate });
@@ -67,6 +79,8 @@ class DemoApp {
     this.draw_spectrogram();
     this.text_input.value = "";
     this.aligned_text.innerHTML = "";
+    // No more alignment to download!
+    this.download_alignment.classList.add("hidden");
     this.align_text();
   }
 
@@ -76,7 +90,6 @@ class DemoApp {
       const { data, nfr, nfeat } = this.aligner.recognizer.spectrogram(
         this.audio_buffer.getChannelData(0)
       );
-      const frate = this.aligner.recognizer.get_config("frate") as number;
       /* Plot it */
       canvas.height = (nfeat - 1) * FILT_HEIGHT + 60;
       canvas.width = nfr * FRAME_WIDTH;
@@ -185,6 +198,23 @@ class DemoApp {
     ctx.restore();
   }
 
+  /**
+   * Create download link for alignment (audio done elsewhere).
+   */
+  make_alignment_download(result: Segment) {
+    const data = URL.createObjectURL(
+      new Blob([JSON.stringify(result, null, 2)], {
+        type: "application/json"
+      })
+    );
+    const prev_data = this.download_alignment.getAttribute("href");
+    if (prev_data)
+      URL.revokeObjectURL(prev_data);
+    this.download_alignment.setAttribute("href", data);
+    this.download_alignment.classList.remove("hidden");
+    this.download.classList.remove("hidden");
+  }
+
   async align_text() {
     if (this.audio_buffer === null) {
       this.update_status("Please record or select an audio file to align");
@@ -197,6 +227,7 @@ class DemoApp {
           this.audio_buffer,
           this.text_input.value
         );
+        this.make_alignment_download(result);
         this.make_aligned_text(result);
         this.draw_labels(result);
         this.update_status("done!");
