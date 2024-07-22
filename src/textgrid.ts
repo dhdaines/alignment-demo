@@ -1,4 +1,4 @@
-// -*- js-indent-level: 2 -*-
+// -*- js-indent-level: 4 -*-
 // Copyright (c) 2024 David Huggins-Daines <dhd@ecolingui.ca>
 
 import { Segment } from "soundswallower/jsonly";

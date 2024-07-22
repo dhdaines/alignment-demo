@@ -13,6 +13,36 @@ const G2P_API = "http://localhost:5000/api/v2";
 
 var soundswallower: SoundSwallowerModule;
 
+export interface BeamSettings {
+  beam: number;
+  pbeam: number;
+  wbeam: number;
+}
+
+export enum BeamDefaults {
+  strict = "strict",
+  moderate = "moderate",
+  loose = "loose",
+}
+
+const beamParams: { [key in BeamDefaults]: BeamSettings } = {
+  strict: {
+    beam: 1e-100,
+    pbeam: 1e-100,
+    wbeam: 1e-80,
+  },
+  moderate: {
+    beam: 1e-200,
+    pbeam: 1e-200,
+    wbeam: 1e-160,
+  },
+  loose: {
+    beam: 0,
+    pbeam: 0,
+    wbeam: 0,
+  },
+};
+
 export interface SupportedLanguage {
   code: string;
   name: string | null;
@@ -28,8 +58,13 @@ export class Aligner {
     return Promise.all([this.reinitialize(), this.get_langs()]);
   }
 
-  async reinitialize() {
-    this.recognizer = new soundswallower.Decoder();
+  async reinitialize(mode: BeamDefaults = BeamDefaults.strict) {
+    this.recognizer = new soundswallower.Decoder({
+      //loglevel: "INFO",
+        beam: beamParams[mode]["beam"],
+        wbeam: beamParams[mode]["wbeam"],
+        pbeam: beamParams[mode]["pbeam"],
+    });
     this.recognizer.unset_config("dict");
     await this.recognizer.initialize();
   }
@@ -38,9 +73,7 @@ export class Aligner {
     const response = await fetch(`${G2P_API}/langs`);
     if (response.ok) this.langs = await response.json();
     else
-      throw new Error(
-        `Failed to fetch ${G2P_API}/langs: ${response.statusText}`
-      );
+      throw `Failed to fetch ${G2P_API}/langs: ${response.statusText}`;
   }
 
   async convert(text: string): Promise<Array<any>> {
@@ -48,9 +81,7 @@ export class Aligner {
     let path = [];
     if (response.ok) path = await response.json()
     else
-      throw new Error(
-        `Failed to fetch ${G2P_API}/path/${this.lang}/eng-arpabet: ${response.statusText}`
-      );
+      throw `Failed to fetch ${G2P_API}/path/${this.lang}/eng-arpabet: ${response.statusText}`;
     let ipa_lang = `${this.lang}-ipa`;
     for (const lang of path) {
       if (lang.includes("-ipa")) {
@@ -74,10 +105,8 @@ export class Aligner {
     if (response.ok) return response.json();
     else {
       const detail = await response.json();
-      console.log(detail);
-      throw new Error(
-        `Failed to fetch ${G2P_API}/convert: ${detail.detail[0].msg}`
-      );
+      console.log("Error detail:", detail);
+      throw `Failed to fetch ${G2P_API}/convert: ${detail.detail[0].msg}`;
     }
   }
 
@@ -85,7 +114,7 @@ export class Aligner {
     const words: Array<string> = [];
     const dict = new Map<string, string>();
     for (const token of g2p) {
-      console.log(JSON.stringify(token));
+      console.log("token:", JSON.stringify(token));
       if (token.conversions.length === 0 || token.conversions[0].out_lang === null)
         continue;
       const final: Array<any> = token.conversions[0].substring_alignments;
@@ -104,17 +133,26 @@ export class Aligner {
       return alignment;
     let idx = 0;
     const words = alignment.w;
+    // We already checked that words.length > 0 but check it again
+    if (words.length == 0)
+      throw "Alignment failed: no words recognized";
     for (const token of g2p) {
       if (token.conversions.length === 0 || token.conversions[0].out_lang === null)
         continue;
       // Double-check that the words line up
       const initial: Array<any> = token.conversions[token.conversions.length - 1].substring_alignments;
       const word = initial.map(alignment => alignment[0]).join("");
-      while (!words[idx].w || words[idx].t == "<sil>") idx++; // FIXME: need other noise
+      while (!words[idx].w || words[idx].t == "<sil>") { // FIXME: need other noise
+        idx++;
+        if (idx >= words.length)
+          throw `Not all words were properly aligned`;
+      }
       const wordseg = words[idx];
       if (wordseg.t !== word)
-        throw new Error(`Mismatch in segment ${idx}: ${wordseg.t} != ${word}`);
+        throw `Mismatch in segment ${idx}: ${wordseg.t} != ${word}`;
       idx++;
+      if (idx >= words.length)
+        throw `Not all words were properly aligned`;
 
       // Map the phones.  Note that the output alignments, being
       // character-based, do not necessarily correspond to ARPABET
@@ -147,7 +185,7 @@ export class Aligner {
         output_phone = "";
       }
       wordseg.w = output.filter(s => typeof(s) !== "undefined");
-      // console.log(JSON.stringify(wordseg))
+      console.log("wordseg:", JSON.stringify(wordseg))
     }
     return alignment
   }
@@ -155,14 +193,20 @@ export class Aligner {
   async align(audio: AudioBuffer, text: string): Promise<Segment> {
     if (this.recognizer.get_config("samprate") != audio.sampleRate)
       this.recognizer.set_config("samprate", audio.sampleRate);
-    await this.recognizer.initialize();
-    const g2p = await this.convert(text);
-    // console.log(JSON.stringify(g2p));
-    this.setup_alignment(g2p);
-    this.recognizer.start();
-    this.recognizer.process_audio(audio.getChannelData(0), false, true);
-    this.recognizer.stop();
-    const alignment = this.recognizer.get_alignment({ align_level: 1 });
-    return this.process_alignment(alignment, g2p);
+    for (const beamWidth of Object.values(BeamDefaults)) {
+      console.log("Trying beam settings:", beamWidth);
+      await this.reinitialize(beamWidth);
+      const g2p = await this.convert(text);
+      console.log("g2p:", JSON.stringify(g2p));
+      this.setup_alignment(g2p);
+      this.recognizer.start();
+      this.recognizer.process_audio(audio.getChannelData(0), false, true);
+      this.recognizer.stop();
+      const alignment = this.recognizer.get_alignment({ align_level: 1 });
+      if (alignment.w === undefined || alignment.w.length === 0)
+        continue;
+      return this.process_alignment(alignment, g2p);
+    }
+    throw "No alignment found";
   }
 }

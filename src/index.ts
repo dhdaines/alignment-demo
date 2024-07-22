@@ -262,8 +262,8 @@ class DemoApp {
         this.draw_labels(result);
         this.update_status("done!");
       } catch (e) {
-        this.update_status("Error aligning: " + e.message);
-        throw e;
+        this.update_status("Error aligning: " + e);
+        // throw e;
       }
     }
   }
@@ -331,7 +331,7 @@ class DemoApp {
     try {
       await this.init_aligner();
     } catch (e) {
-      this.update_status("Error initializing speech aligner: " + e.message);
+      this.update_status("Error initializing speech aligner: " + e);
       return;
     }
     this.language_list.innerHTML = "";
